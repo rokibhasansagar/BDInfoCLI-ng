@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# Docker Wrapper script for easy use
+
+if [ $# -eq 0 ]; then
+  docker run --rm -it --user $(id -u) fr3akyphantom/bdinfocli-ng
+  exit 1
+fi
+
+LONG_OPTS="help,list,mpls:,whole,version"
+TEMP=`getopt -o h,l,m:,w,v --long $LONG_OPTS -n "bdinfo" -- "$@"`
+eval set -- "$TEMP"
+
+HELP=""
+LIST=""
+WHOLE=""
+VERSION=""
+while true; do
+  case "$1" in
+    -h|--help) HELP="-h" ; shift ;;
+    -l|--list) HELP="-l" ; shift ;;
+    -m|--mpls) shift ; MPLS=("-m" "$1") ; shift ;;
+    -v|--version) VERSION="-v" ; shift ;;
+    -w|--whole) WHOLE="-w" ; shift ;;
+    --) shift; break ;;
+    -*) echo "invalid option: $1" && return 1 ;;
+    *) echo "getopt failed" && return 1 ;;
+  esac
+done
+source_path=$(readlink -f "$1")
+if [ -n "$source_path" ]; then
+  # split dirname and basename to retain correct "Disc Title"
+  source_dir=$(dirname "$source_path")
+  source_base=$(basename "$source_path")
+  source_mount_docker_arg=("-v" "$source_dir:/mnt/bd")
+  source_mount_arg="/mnt/bd/$source_base"
+
+  # Default to source_path if $2 not given
+  if [[ -z "$2" && ! -d "$source_path" ]]; then
+    echo "error: REPORT_DEST must be given if BD_PATH is an ISO."
+    exit 1
+  fi
+  dest_path=$(readlink -f "${2:-$1}")
+  dest_mount_docker_arg=("-v" "$dest_path:/mnt/report")
+  dest_mount_arg="/mnt/report"
+fi
+
+docker run --rm --user $(id -u) \
+  "${source_mount_docker_arg[@]}" \
+  "${dest_mount_docker_arg[@]}" \
+  -it fr3akyphantom/bdinfocli-ng \
+  $HELP \
+  $VERSION \
+  ${MPLS[@]} \
+  $WHOLE \
+  "$source_mount_arg" \
+  "$dest_mount_arg"
